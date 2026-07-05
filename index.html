@@ -179,6 +179,28 @@ button.tag.addmemo{cursor:pointer;color:#B0A995;font-family:var(--sans);}
 .budget-set{display:flex;gap:8px;margin-top:12px;align-items:center;font-size:13px;color:var(--ink-soft);flex-wrap:wrap;}
 .budget-set input{width:120px;border:1px solid var(--rule);border-radius:6px;padding:6px 9px;font-family:var(--mono);font-size:13px;background:var(--paper);color:var(--ink);}
 .budget-set input:focus{outline:2px solid var(--ledger);border-color:transparent;}
+
+/* ── 캘린더 보기 ── */
+.cal-head{display:flex;align-items:center;justify-content:space-between;padding:0 4px 10px;}
+.cal-head .c-title{font-weight:700;font-size:15px;}
+.cal-head .c-right{display:flex;align-items:center;gap:10px;}
+.cal-head .c-nav{display:flex;gap:6px;}
+.cal-head .c-nav button{border:1px solid var(--rule);background:var(--white);color:var(--ink-soft);border-radius:6px;width:34px;height:30px;font-size:16px;cursor:pointer;line-height:1;padding:0;}
+.cal-head .c-nav button:focus-visible{outline:2px solid var(--ledger);outline-offset:2px;}
+.cal{background:var(--white);border:1px solid var(--rule);border-radius:8px;overflow:hidden;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);}
+.cal-grid .wd{padding:7px 0;text-align:center;font-size:11px;color:var(--ink-soft);background:var(--paper-deep);font-family:var(--mono);}
+.cal-grid .wd.sun{color:var(--stamp);}
+.cal-cell{min-height:56px;border-top:1px solid var(--rule);border-left:1px solid #F0EDE4;padding:5px 2px;
+  display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;background:var(--white);}
+.cal-grid .cal-cell:nth-of-type(7n+1){border-left:0;}
+.cal-cell.empty{cursor:default;background:var(--paper);}
+.cal-cell .d{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%;}
+.cal-cell.today .d{background:var(--ink);color:var(--paper);}
+.cal-cell.sel{background:#EAF3F0;}
+.cal-cell .v{font-family:var(--mono);font-size:10px;color:var(--ledger);letter-spacing:-.04em;}
+.cal-cell .v.minus{color:var(--stamp);}
+.cal-day-list{margin-top:14px;}
 .code-info{margin-top:12px;font-size:12.5px;color:var(--ink-soft);font-family:var(--mono);}
 
 /* ── 시작 화면(공유 코드 / 설정 안내) ── */
@@ -287,6 +309,7 @@ KB국민BC카드(1050)
   </section>
 
   <section id="listSection" style="display:none">
+    <div class="filters" id="viewToggle"></div>
     <div class="filters" id="monthFilters"></div>
     <div class="filters" id="personFilters"></div>
     <div id="txList"></div>
@@ -368,6 +391,9 @@ let filterMonth = 'all';
 let filterPerson = 'all';
 let filterVar = false;      // '변동만' 필터
 let fixedSet = new Set();   // 고정지출로 판정된 가맹점
+let viewMode = 'list';      // 'list' | 'cal'
+let calY = 0, calM = 0;     // 캘린더가 표시 중인 연/월
+let selDay = null;          // 캘린더에서 선택된 날짜
 let ledgerRef = null;
 let ledgerCode = null;
 
@@ -776,7 +802,33 @@ function render() {
 
   const months = monthsOf(state.txs);
   if (filterMonth !== 'all' && !months.includes(filterMonth)) filterMonth = 'all';
+
+  /* 보기 전환: 목록 / 캘린더 */
+  const vt = document.getElementById('viewToggle');
+  vt.innerHTML = '';
+  [['목록', 'list'], ['캘린더', 'cal']].forEach(pair => {
+    const c = document.createElement('button');
+    c.type = 'button';
+    c.className = 'chip' + (viewMode === pair[1] ? ' on' : '');
+    c.textContent = pair[0];
+    c.addEventListener('click', () => {
+      if (viewMode === pair[1]) return;
+      viewMode = pair[1];
+      if (viewMode === 'cal') {
+        const n2 = new Date();
+        if (filterMonth !== 'all') {
+          const p = filterMonth.split('-');
+          calY = +p[0]; calM = +p[1];
+        } else { calY = n2.getFullYear(); calM = n2.getMonth() + 1; }
+        selDay = null;
+      }
+      render();
+    });
+    vt.appendChild(c);
+  });
+
   const mf = document.getElementById('monthFilters');
+  mf.style.display = viewMode === 'cal' ? 'none' : 'flex';
   mf.innerHTML = '';
   const mkChip = (label, val, cur, setter) => {
     const c = document.createElement('button');
@@ -900,6 +952,11 @@ function render() {
 
   const list = document.getElementById('txList');
   list.innerHTML = '';
+  if (viewMode === 'cal') {
+    renderCalendar(list);
+    drawChart();
+    return;
+  }
   const groups = {};
   shown.forEach(t => {
     const k = t.y + '-' + pad(t.m);
@@ -929,6 +986,121 @@ function render() {
   });
 
   drawChart();
+}
+
+function shortWon(n) {
+  const a = Math.abs(n);
+  const s = a >= 10000 ? (Math.round(a / 1000) / 10) + '만' : a.toLocaleString('ko-KR');
+  return (n < 0 ? '−' : '') + s;
+}
+
+function renderCalendar(container) {
+  const monthTx = state.txs.filter(t =>
+    t.y === calY && t.m === calM &&
+    (filterPerson === 'all' || t.person === filterPerson) &&
+    (!filterVar || !fixedSet.has(t.merchant)));
+  const dayTotals = {};
+  monthTx.forEach(t => { dayTotals[t.d] = (dayTotals[t.d] || 0) + t.amount; });
+  const monthTotal = monthTx.reduce((s, t) => s + t.amount, 0);
+
+  /* 헤더: 연월 + 합계 + 이동 화살표 */
+  const head = document.createElement('div');
+  head.className = 'cal-head';
+  const title = document.createElement('span');
+  title.className = 'c-title';
+  title.textContent = calY + '년 ' + calM + '월';
+  head.appendChild(title);
+  const right = document.createElement('span');
+  right.className = 'c-right';
+  const tot = document.createElement('span');
+  tot.className = 'm-total';
+  tot.textContent = monthTx.length ? monthTx.length + '건 · ' + fmt(monthTotal) : '';
+  right.appendChild(tot);
+  const nav = document.createElement('span');
+  nav.className = 'c-nav';
+  const mkNav = (txt, dir) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = txt;
+    b.setAttribute('aria-label', dir < 0 ? '이전 달' : '다음 달');
+    b.addEventListener('click', () => {
+      let m = calM + dir, y = calY;
+      if (m < 1) { m = 12; y--; }
+      if (m > 12) { m = 1; y++; }
+      calY = y; calM = m; selDay = null;
+      render();
+    });
+    return b;
+  };
+  nav.appendChild(mkNav('‹', -1));
+  nav.appendChild(mkNav('›', 1));
+  right.appendChild(nav);
+  head.appendChild(right);
+  container.appendChild(head);
+
+  /* 달력 격자 */
+  const cal = document.createElement('div');
+  cal.className = 'cal';
+  const grid = document.createElement('div');
+  grid.className = 'cal-grid';
+  ['일', '월', '화', '수', '목', '금', '토'].forEach((w, i) => {
+    const e = document.createElement('div');
+    e.className = 'wd' + (i === 0 ? ' sun' : '');
+    e.textContent = w;
+    grid.appendChild(e);
+  });
+  const first = new Date(calY, calM - 1, 1).getDay();
+  const days = new Date(calY, calM, 0).getDate();
+  const n2 = new Date();
+  for (let i = 0; i < first; i++) {
+    const e = document.createElement('div');
+    e.className = 'cal-cell empty';
+    grid.appendChild(e);
+  }
+  for (let d = 1; d <= days; d++) {
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell' +
+      (selDay === d ? ' sel' : '') +
+      (calY === n2.getFullYear() && calM === n2.getMonth() + 1 && d === n2.getDate() ? ' today' : '');
+    const dn = document.createElement('span');
+    dn.className = 'd'; dn.textContent = d;
+    cell.appendChild(dn);
+    if (dayTotals[d]) {
+      const v = document.createElement('span');
+      v.className = 'v' + (dayTotals[d] < 0 ? ' minus' : '');
+      v.textContent = shortWon(dayTotals[d]);
+      cell.appendChild(v);
+    }
+    cell.addEventListener('click', () => {
+      selDay = selDay === d ? null : d;
+      render();
+    });
+    grid.appendChild(cell);
+  }
+  cal.appendChild(grid);
+  container.appendChild(cal);
+
+  /* 선택된 날짜의 내역 */
+  if (selDay) {
+    const dayTx = monthTx.filter(t => t.d === selDay)
+      .sort((a, b) => (a.hh * 60 + a.mi) - (b.hh * 60 + b.mi));
+    const wrap = document.createElement('div');
+    wrap.className = 'cal-day-list receipt-wrap';
+    const h = document.createElement('div');
+    h.className = 'month-head';
+    h.innerHTML = '<span class="m-name">' + calM + '월 ' + selDay + '일</span>' +
+      '<span class="m-total">' + (dayTx.length
+        ? dayTx.length + '건 · ' + fmt(dayTx.reduce((s, t) => s + t.amount, 0))
+        : '내역 없음') + '</span>';
+    wrap.appendChild(h);
+    if (dayTx.length) {
+      const zt = document.createElement('div'); zt.className = 'zig'; wrap.appendChild(zt);
+      const rc = document.createElement('div'); rc.className = 'receipt';
+      dayTx.forEach(t => rc.appendChild(txRow(t)));
+      wrap.appendChild(rc);
+      const zb = document.createElement('div'); zb.className = 'zig bot'; wrap.appendChild(zb);
+    }
+    container.appendChild(wrap);
+  }
 }
 
 function txRow(t) {
