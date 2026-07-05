@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>우리집 카드장부</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<style>
+:root{
+  --paper:#F6F3EB;
+  --paper-deep:#EFEADF;
+  --ink:#21313F;
+  --ink-soft:#4A5A66;
+  --rule:#DCD6C8;
+  --stamp:#B5402C;
+  --ledger:#2E7D6E;
+  --ochre:#C08A3E;
+  --white:#FFFDF8;
+  --mono:'IBM Plex Mono',monospace;
+  --sans:'IBM Plex Sans KR',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{-webkit-text-size-adjust:100%;}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;min-height:100vh;}
+
+/* ── 헤더: 잉크 밴드 ── */
+header{background:var(--ink);color:var(--paper);padding:26px 20px 22px;}
+.head-in{max-width:680px;margin:0 auto;position:relative;}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:#9DB2BE;text-transform:uppercase;}
+h1{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-top:4px;}
+.head-sub{font-size:13px;color:#B9C6CE;margin-top:6px;}
+.conn{position:absolute;top:2px;right:0;display:flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:11px;color:#9DB2BE;}
+.conn .dot{width:8px;height:8px;border-radius:50%;background:#6B7A85;}
+.conn.on .dot{background:#4CC38A;}
+.conn.on{color:#8FD9B5;}
+
+main{max-width:680px;margin:0 auto;padding:18px 14px 60px;}
+
+/* ── 공통 카드 ── */
+.panel{background:var(--white);border:1px solid var(--rule);border-radius:10px;padding:16px;margin-bottom:16px;box-shadow:0 1px 0 rgba(33,49,63,.05);}
+.panel h2{font-size:13px;font-weight:700;letter-spacing:.12em;color:var(--ink-soft);margin-bottom:12px;}
+.panel h2 .tick{color:var(--ledger);margin-right:6px;}
+
+/* ── 입력 영수증 ── */
+textarea{width:100%;min-height:150px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);
+  padding:12px;font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--ink);resize:vertical;}
+textarea:focus{outline:2px solid var(--ledger);outline-offset:1px;border-color:transparent;}
+textarea::placeholder{color:#A9A390;}
+.input-row{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;align-items:center;}
+.person-pick{display:flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--paper);}
+.person-pick button{border:0;background:transparent;padding:9px 18px;font-family:var(--sans);font-size:14px;font-weight:500;color:var(--ink-soft);cursor:pointer;}
+.person-pick button.on{background:var(--ink);color:var(--paper);font-weight:700;}
+.btn{border:0;border-radius:8px;padding:11px 20px;font-family:var(--sans);font-size:14px;font-weight:700;cursor:pointer;}
+.btn:focus-visible,.person-pick button:focus-visible{outline:2px solid var(--ledger);outline-offset:2px;}
+.btn-main{background:var(--ledger);color:#fff;flex:1;min-width:120px;}
+.btn-main:active{background:#256a5d;}
+.btn-ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--rule);}
+.parse-msg{margin-top:10px;font-size:13px;color:var(--ledger);min-height:1.2em;}
+.parse-msg.warn{color:var(--stamp);}
+
+/* ── 요약 ── */
+.sum-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+.sum-cell{background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:12px;}
+.sum-cell .lbl{font-size:12px;color:var(--ink-soft);}
+.sum-cell .val{font-family:var(--mono);font-size:17px;font-weight:600;margin-top:3px;letter-spacing:-.02em;white-space:nowrap;}
+.sum-cell.total .val{color:var(--ink);font-size:19px;}
+.sum-cell.p0 .val{color:var(--ledger);}
+.sum-cell.p1 .val{color:var(--ochre);}
+@media(max-width:480px){.sum-grid{grid-template-columns:1fr;}
+ .sum-cell{display:flex;justify-content:space-between;align-items:baseline;}
+ .sum-cell .val{margin-top:0;}}
+
+/* ── 필터 ── */
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.chip{border:1px solid var(--rule);background:var(--white);color:var(--ink-soft);border-radius:999px;
+  padding:6px 14px;font-family:var(--mono);font-size:12.5px;font-weight:500;cursor:pointer;}
+.chip.on{background:var(--ink);border-color:var(--ink);color:var(--paper);font-weight:600;}
+.chip:focus-visible{outline:2px solid var(--ledger);outline-offset:2px;}
+
+/* ── 영수증 목록 (시그니처) ── */
+.month-block{margin-bottom:22px;}
+.month-head{display:flex;justify-content:space-between;align-items:baseline;padding:0 4px 8px;}
+.month-head .m-name{font-weight:700;font-size:15px;}
+.month-head .m-total{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--ink-soft);}
+.receipt{background:var(--white);border:1px solid var(--rule);border-radius:4px;position:relative;}
+.zig{height:8px;background:
+  linear-gradient(45deg,transparent 33.333%,var(--white) 33.333%,var(--white) 66.667%,transparent 66.667%),
+  linear-gradient(-45deg,transparent 33.333%,var(--white) 33.333%,var(--white) 66.667%,transparent 66.667%);
+  background-size:14px 16px;background-position:0 -8px;}
+.zig.bot{transform:scaleY(-1);}
+.tx{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;padding:11px 14px;
+  border-bottom:1px dashed var(--rule);align-items:baseline;}
+.tx:last-child{border-bottom:0;}
+.tx .dt{font-family:var(--mono);font-size:12px;color:var(--ink-soft);white-space:nowrap;}
+.tx .dt b{color:var(--ink);font-weight:600;}
+.tx .mer{font-size:14.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  display:flex;align-items:baseline;gap:8px;min-width:0;}
+.tx .mer .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tx .mer::after{content:"";flex:1;border-bottom:1px dotted #B9B29E;min-width:12px;transform:translateY(-3px);}
+.tx .amt{font-family:var(--mono);font-size:15px;font-weight:600;white-space:nowrap;text-align:right;}
+.tx .amt.minus{color:var(--stamp);}
+.tx .meta{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:var(--ink-soft);}
+.tag{font-family:var(--mono);font-size:11px;border:1px solid var(--rule);border-radius:4px;padding:1px 7px;background:var(--paper);}
+.tag.person{cursor:pointer;font-family:var(--sans);font-weight:700;border-style:solid;}
+.tag.person.p0{color:var(--ledger);border-color:var(--ledger);}
+.tag.person.p1{color:var(--ochre);border-color:var(--ochre);}
+.tag.cancel{color:var(--stamp);border-color:var(--stamp);font-weight:700;transform:rotate(-3deg);}
+.tx .del{margin-left:auto;border:0;background:transparent;color:#B0A995;font-size:15px;cursor:pointer;padding:0 4px;line-height:1;}
+.tx .del:hover{color:var(--stamp);}
+.tx .del:focus-visible{outline:2px solid var(--stamp);outline-offset:2px;border-radius:4px;}
+.empty{padding:34px 16px;text-align:center;color:var(--ink-soft);font-size:14px;background:var(--white);border:1px dashed var(--rule);border-radius:10px;}
+.empty .mono{font-family:var(--mono);font-size:12px;display:block;margin-top:6px;color:#A9A390;}
+
+/* ── 차트 ── */
+canvas{width:100%;height:190px;display:block;}
+.legend{display:flex;gap:16px;margin-top:8px;font-size:12.5px;color:var(--ink-soft);}
+.legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;}
+
+/* ── 데이터 관리 ── */
+.tools{display:flex;gap:8px;flex-wrap:wrap;}
+.tools .btn{font-size:13px;padding:9px 14px;}
+.btn-danger{background:transparent;color:var(--stamp);border:1px solid var(--stamp);}
+.rename{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--ink-soft);}
+.rename input{width:90px;border:1px solid var(--rule);border-radius:6px;padding:6px 9px;font-family:var(--sans);font-size:13px;background:var(--paper);color:var(--ink);}
+.rename input:focus{outline:2px solid var(--ledger);border-color:transparent;}
+.code-info{margin-top:12px;font-size:12.5px;color:var(--ink-soft);font-family:var(--mono);}
+
+/* ── 시작 화면(공유 코드 / 설정 안내) ── */
+.gate{max-width:680px;margin:0 auto;padding:24px 14px;}
+.gate .panel{padding:22px;}
+.gate h2{font-size:16px;letter-spacing:0;color:var(--ink);margin-bottom:8px;}
+.gate p{font-size:14px;color:var(--ink-soft);margin-bottom:14px;}
+.gate .code-row{display:flex;gap:8px;flex-wrap:wrap;}
+.gate input{flex:1;min-width:180px;border:1px solid var(--rule);border-radius:8px;padding:12px;
+  font-family:var(--mono);font-size:15px;background:var(--paper);color:var(--ink);letter-spacing:.04em;}
+.gate input:focus{outline:2px solid var(--ledger);border-color:transparent;}
+.gate .hint{font-size:12.5px;color:#A9A390;margin-top:12px;line-height:1.7;}
+.gate .setup-steps{font-size:13.5px;color:var(--ink-soft);line-height:2;}
+.gate .setup-steps b{color:var(--ink);}
+.gate code{font-family:var(--mono);font-size:12px;background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:1px 6px;}
+
+footer{max-width:680px;margin:0 auto;padding:0 14px 40px;font-size:12px;color:#A9A390;text-align:center;font-family:var(--mono);}
+@media(prefers-reduced-motion:no-preference){
+  .receipt-wrap{animation:slip .25s ease;}
+  @keyframes slip{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="head-in">
+    <div class="eyebrow">CARD SMS LEDGER · SYNC</div>
+    <h1>우리집 카드장부</h1>
+    <div class="head-sub">한 사람이 기록하면 두 사람 폰에 바로 반영됩니다</div>
+    <div class="conn" id="conn"><span class="dot"></span><span id="connLabel">연결 중</span></div>
+  </div>
+</header>
+
+<!-- ── 게이트: Firebase 미설정 / 공유 코드 입력 ── -->
+<div class="gate" id="gateSetup" style="display:none">
+  <div class="panel">
+    <h2>처음 한 번만: Firebase 연결 설정</h2>
+    <p>이 파일의 코드 안에 Firebase 설정이 아직 입력되지 않았습니다.</p>
+    <div class="setup-steps">
+      1. <b>console.firebase.google.com</b> → 프로젝트 추가 (애널리틱스는 꺼도 됩니다)<br>
+      2. 빌드 → <b>Realtime Database</b> → 데이터베이스 만들기 → <b>잠금 모드</b>로 시작<br>
+      3. <b>규칙</b> 탭에 전달받은 보안 규칙 붙여넣고 게시<br>
+      4. 프로젝트 설정(톱니) → 내 앱 → <b>웹 앱(&lt;/&gt;)</b> 추가 → <code>firebaseConfig</code> 복사<br>
+      5. 이 HTML 파일을 열어 <code>★ firebaseConfig 붙여넣는 곳 ★</code> 자리에 붙여넣기<br>
+      6. GitHub Pages에 업로드 후 두 분 폰에서 접속
+    </div>
+  </div>
+</div>
+
+<div class="gate" id="gateCode" style="display:none">
+  <div class="panel">
+    <h2>우리 가족 장부 코드</h2>
+    <p>두 분이 <b>같은 코드</b>를 입력하면 같은 장부를 함께 보게 됩니다. 처음이라면 "새 코드 만들기"로 만든 코드를 아내분께 알려주세요.</p>
+    <div class="code-row">
+      <input id="codeInput" maxlength="30" placeholder="예: moonrae-k7x2p9" autocomplete="off">
+      <button class="btn btn-main" id="codeEnter" style="flex:0 1 auto">장부 열기</button>
+      <button class="btn btn-ghost" id="codeGen">새 코드 만들기</button>
+    </div>
+    <div class="hint">
+      · 코드가 곧 열쇠입니다. 길고 추측하기 어려운 코드를 쓰고, 두 분 외에는 알려주지 마세요.<br>
+      · 한 번 입력하면 이 폰에 기억되어 다음부터 바로 열립니다.
+    </div>
+    <div class="parse-msg warn" id="codeMsg" role="alert"></div>
+  </div>
+</div>
+
+<!-- ── 본문 ── -->
+<main id="app" style="display:none">
+  <section class="panel">
+    <h2><span class="tick">■</span>문자 붙여넣기</h2>
+    <textarea id="inbox" placeholder="카드 사용 안내 문자를 그대로 붙여넣으세요. 여러 건을 한 번에 붙여넣어도 됩니다.
+
+예)
+■ 카드 사용 안내
+KB국민BC 서*석님
+KB국민BC카드(1050)
+22,000원 일시불 07/04 10:42
+스마트파이브"></textarea>
+    <div class="input-row">
+      <div class="person-pick" id="personPick" role="group" aria-label="사용자 선택"></div>
+      <button class="btn btn-main" id="parseBtn">장부에 기록</button>
+    </div>
+    <div class="parse-msg" id="parseMsg" role="status"></div>
+  </section>
+
+  <section class="panel" id="sumPanel" style="display:none">
+    <h2><span class="tick">■</span><span id="sumTitle">이번 달 합계</span></h2>
+    <div class="sum-grid">
+      <div class="sum-cell total"><div class="lbl">전체</div><div class="val" id="sumAll">0원</div></div>
+      <div class="sum-cell p0"><div class="lbl" id="sumL0">나</div><div class="val" id="sumV0">0원</div></div>
+      <div class="sum-cell p1"><div class="lbl" id="sumL1">아내</div><div class="val" id="sumV1">0원</div></div>
+    </div>
+  </section>
+
+  <section id="listSection" style="display:none">
+    <div class="filters" id="monthFilters"></div>
+    <div class="filters" id="personFilters"></div>
+    <div id="txList"></div>
+  </section>
+
+  <div class="empty" id="emptyBox">
+    아직 기록된 내역이 없습니다.<br>위에 카드 문자를 붙여넣고 <b>장부에 기록</b>을 눌러보세요.
+    <span class="mono">기록하면 상대방 폰에도 몇 초 안에 나타납니다</span>
+  </div>
+
+  <section class="panel" id="chartPanel" style="display:none">
+    <h2><span class="tick">■</span>월별 사용 추이</h2>
+    <canvas id="chart" height="190"></canvas>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--ledger)"></span><span id="legN0">나</span></span>
+      <span><span class="sw" style="background:var(--ochre)"></span><span id="legN1">아내</span></span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2><span class="tick">■</span>데이터 관리</h2>
+    <div class="tools">
+      <button class="btn btn-ghost" id="csvBtn">CSV 내보내기</button>
+      <button class="btn btn-ghost" id="jsonBtn">백업 저장</button>
+      <button class="btn btn-ghost" id="importBtn">백업 불러오기</button>
+      <input type="file" id="importFile" accept=".json" style="display:none">
+      <button class="btn btn-ghost" id="codeChange">장부 코드 변경</button>
+      <button class="btn btn-danger" id="clearBtn">전체 삭제</button>
+    </div>
+    <div class="rename">
+      이름 바꾸기:
+      <input id="name0" maxlength="6" aria-label="첫 번째 사용자 이름">
+      <input id="name1" maxlength="6" aria-label="두 번째 사용자 이름">
+    </div>
+    <div class="code-info">현재 장부 코드: <b id="codeShow"></b></div>
+  </section>
+</main>
+<footer>ⓒ 2026 우리집 카드장부 — Firebase 실시간 동기화</footer>
+
+<script>
+'use strict';
+/* ═══════════════════════════════════════════════════════
+   ★★★ firebaseConfig 붙여넣는 곳 ★★★
+   Firebase 콘솔 → 프로젝트 설정 → 내 앱 → 웹 앱에서 복사한
+   const firebaseConfig = { ... } 의 중괄호 안 내용으로
+   아래 값들을 교체하세요.
+   ═══════════════════════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey: "AIzaSyBChESm_k6z3b6B2giDfFVR8hRmAvCBpPs",
+  authDomain: "wallet-59935.firebaseapp.com",
+  databaseURL: "https://wallet-59935-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "wallet-59935",
+  storageBucket: "wallet-59935.firebasestorage.app",
+  messagingSenderId: "410478552980",
+  appId: "1:410478552980:web:feb00a766782b5e5b59181"
+};
+/* ═══════════════ 여기까지만 수정하면 됩니다 ═══════════════ */
+
+/* ── 로컬 저장(코드 기억 + 오프라인 첫 화면 캐시) ── */
+const store = (() => {
+  try {
+    localStorage.setItem('__t', '1'); localStorage.removeItem('__t');
+    return { get: k => localStorage.getItem(k), set: (k, v) => localStorage.setItem(k, v), del: k => localStorage.removeItem(k) };
+  } catch (e) {
+    const m = {};
+    return { get: k => (k in m ? m[k] : null), set: (k, v) => { m[k] = String(v); }, del: k => { delete m[k]; } };
+  }
+})();
+
+/* ── 상태 ── */
+let state = { txs: [], names: ['나', '아내'], cardOwner: {}, holderOwner: {} };
+let curPerson = 0;
+let filterMonth = 'all';
+let filterPerson = 'all';
+let ledgerRef = null;
+let ledgerCode = null;
+
+function fmt(n) { return n.toLocaleString('ko-KR') + '원'; }
+function pad(n) { return String(n).padStart(2, '0'); }
+function txKey(t) {
+  return [t.y, pad(t.m), pad(t.d), pad(t.hh), pad(t.mi), t.amount, t.last4 || 'x']
+    .join('_').replace(/[.#$\[\]\/]/g, '-');
+}
+
+/* ═══════════ 파서 (Node.js 검증 완료 — 로컬 버전과 동일) ═══════════ */
+const BOILERPLATE = /안내|고객센터|피싱|클릭|비밀번호|신분증|Web발신|국외발신|국제발신|광고|무료거부|수신거부|http|www\.|누적|승인금액|이용금액|잔액|한도/;
+
+function parseText(text, nowDate) {
+  const now = nowDate || new Date();
+  const lines = text.split(/\r?\n/).map(l => l.trim());
+  const txs = [];
+  const amountRe = /([\d,]{2,15})\s*원/;
+  const dateTimeRe = /(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})/;
+  const fullDateRe = /(20\d{2}|\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})/;
+  const korDateRe = /(\d{1,2})월\s*(\d{1,2})일/;
+  const timeRe = /(\d{1,2}):(\d{2})/;
+  const cardRe = /([가-힣A-Za-z0-9 ]*?카드)?\s*\((\d{4})\)/;
+  const holderRe = /([가-힣])\*+([가-힣])\s*님/;
+
+  function inferYear(m, d) {
+    const y = now.getFullYear();
+    const candidate = new Date(y, m - 1, d);
+    if (candidate.getTime() > now.getTime() + 86400000) return y - 1;
+    return y;
+  }
+  function findDate(line) {
+    let m = line.match(dateTimeRe);
+    if (m) {
+      const mo = +m[1], d = +m[2];
+      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31)
+        return { y: inferYear(mo, d), m: mo, d, hh: +m[3], mi: +m[4] };
+    }
+    m = line.match(fullDateRe);
+    if (m) {
+      let y = +m[1]; if (y < 100) y += 2000;
+      const mo = +m[2], d = +m[3];
+      if (y >= 2000 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
+        const t = line.match(timeRe);
+        return { y, m: mo, d, hh: t ? +t[1] : 0, mi: t ? +t[2] : 0 };
+      }
+    }
+    m = line.match(korDateRe);
+    if (m) {
+      const mo = +m[1], d = +m[2];
+      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
+        const t = line.match(timeRe);
+        return { y: inferYear(mo, d), m: mo, d, hh: t ? +t[1] : 0, mi: t ? +t[2] : 0 };
+      }
+    }
+    return null;
+  }
+  function isMerchantCandidate(line) {
+    if (!line || line.length < 2 || line.length > 25) return false;
+    if (BOILERPLATE.test(line)) return false;
+    if (/^[※■□▶*(\[]/.test(line)) return false;
+    if (/☏|☎|\d{2,4}-\d{3,4}-\d{4}/.test(line)) return false;
+    if (amountRe.test(line)) return false;
+    if (findDate(line)) return false;
+    if (/카드$|카드\(/.test(line)) return false;
+    if (/님$|님\b/.test(line)) return false;
+    if (/^\d+$/.test(line)) return false;
+    if (!/[가-힣A-Za-z]/.test(line)) return false;
+    return true;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/누적/.test(line)) continue;
+    const am = line.match(amountRe);
+    if (!am) continue;
+    const amount = parseInt(am[1].replace(/,/g, ''), 10);
+    if (!amount || amount < 10) continue;
+
+    let dt = findDate(line);
+    if (!dt) {
+      for (const j of [i - 1, i + 1, i - 2, i + 2]) {
+        if (j >= 0 && j < lines.length && !amountRe.test(lines[j] || '')) {
+          dt = findDate(lines[j] || '');
+          if (dt) break;
+        }
+      }
+    }
+    if (!dt) continue;
+
+    const headerRe = /^\[?(Web발신|국외발신|국제발신)\]?|^■|카드\s*(사용|승인)\s*안내/;
+    let blockLo = Math.max(0, i - 12), blockHi = Math.min(lines.length - 1, i + 12);
+    let foundHeader = false;
+    for (let j = i; j >= Math.max(0, i - 12); j--) {
+      if (headerRe.test(lines[j])) { blockLo = j; foundHeader = true; break; }
+    }
+    for (let j = i + 1; j <= Math.min(lines.length - 1, i + 12); j++) {
+      if (headerRe.test(lines[j])) { blockHi = j - 1; break; }
+    }
+
+    const cancelLo = foundHeader ? blockLo : Math.max(0, i - 3);
+    const cancelHi = foundHeader ? blockHi : Math.min(lines.length - 1, i + 2);
+    let cancelled = false;
+    for (let j = cancelLo; j <= cancelHi; j++) {
+      if (/취소/.test(lines[j]) && !BOILERPLATE.test(lines[j])) { cancelled = true; break; }
+    }
+    const ctxNear = [lines[i - 1] || '', line, lines[i + 1] || ''].join(' ');
+    let type = '일시불', sign = 1;
+    if (cancelled) { type = '취소'; sign = -1; }
+    else {
+      const inst = ctxNear.match(/(\d+)\s*개월/);
+      if (inst) type = '할부 ' + inst[1] + '개월';
+      else if (/할부/.test(ctxNear)) type = '할부';
+      else if (/체크/.test(ctxNear)) type = '체크';
+    }
+
+    const lo = blockLo, hi = blockHi;
+    let cardName = '', last4 = '', holder = '', merchant = '';
+    for (let j = lo; j <= hi; j++) {
+      const l = lines[j];
+      if (!last4) {
+        const cm = l.match(cardRe);
+        if (cm) { last4 = cm[2]; if (cm[1]) cardName = cm[1].trim(); }
+      }
+      if (!holder) {
+        const hm = l.match(holderRe);
+        if (hm) holder = hm[1] + '*' + hm[2];
+      }
+    }
+    for (let j = i + 1; j <= hi && !merchant; j++) {
+      if (isMerchantCandidate(lines[j])) merchant = lines[j];
+    }
+    if (!merchant) {
+      for (let j = i - 1; j >= lo && !merchant; j--) {
+        if (isMerchantCandidate(lines[j])) merchant = lines[j];
+      }
+    }
+
+    txs.push({
+      y: dt.y, m: dt.m, d: dt.d, hh: dt.hh, mi: dt.mi,
+      amount: amount * sign, type,
+      merchant: merchant || '(가맹점 미확인)',
+      cardName, last4, holder
+    });
+  }
+  return txs;
+}
+
+/* ═══════════ Firebase 연결 ═══════════ */
+function showOnly(id) {
+  ['gateSetup', 'gateCode', 'app'].forEach(x =>
+    document.getElementById(x).style.display = x === id ? 'block' : 'none');
+}
+function setConn(on, label) {
+  const c = document.getElementById('conn');
+  c.className = 'conn' + (on ? ' on' : '');
+  document.getElementById('connLabel').textContent = label;
+}
+function sanitizeCode(v) {
+  return v.trim().replace(/[.#$\[\]\/\s]/g, '-').slice(0, 30);
+}
+
+function init() {
+  if (typeof firebase === 'undefined') {
+    setConn(false, '오프라인');
+    showOnly('gateSetup');
+    document.querySelector('#gateSetup h2').textContent = 'Firebase 스크립트를 불러오지 못했습니다';
+    document.querySelector('#gateSetup p').textContent =
+      '인터넷 연결을 확인해 주세요. (클로드 미리보기 환경에서는 동작하지 않으며, GitHub Pages에 배포한 뒤 열어야 합니다.)';
+    return;
+  }
+  if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes('여기에')) {
+    setConn(false, '설정 필요');
+    showOnly('gateSetup');
+    return;
+  }
+  try { firebase.initializeApp(firebaseConfig); }
+  catch (e) {
+    setConn(false, '설정 오류');
+    showOnly('gateSetup');
+    document.querySelector('#gateSetup h2').textContent = 'Firebase 설정 값에 오류가 있습니다';
+    document.querySelector('#gateSetup p').textContent = '붙여넣은 firebaseConfig 값을 다시 확인해 주세요. (' + e.message + ')';
+    return;
+  }
+
+  firebase.database().ref('.info/connected').on('value', s => {
+    setConn(!!s.val(), s.val() ? '실시간 연결됨' : '오프라인');
+  });
+
+  const saved = store.get('cardLedger.code');
+  if (saved) openLedger(saved);
+  else showOnly('gateCode');
+}
+
+function openLedger(code) {
+  ledgerCode = code;
+  store.set('cardLedger.code', code);
+  document.getElementById('codeShow').textContent = code;
+
+  if (ledgerRef) ledgerRef.off();
+  ledgerRef = firebase.database().ref('ledgers/' + code);
+
+  // 오프라인 첫 화면: 마지막 캐시 먼저 표시
+  try {
+    const cache = store.get('cardLedger.cache.' + code);
+    if (cache) { applyRemote(JSON.parse(cache)); }
+  } catch (e) { /* 캐시 손상 시 무시 */ }
+
+  showOnly('app');
+  render();
+
+  ledgerRef.on('value', snap => {
+    const v = snap.val() || {};
+    applyRemote(v);
+    try { store.set('cardLedger.cache.' + code, JSON.stringify(v)); } catch (e) { /* 용량 초과 등 무시 */ }
+    render();
+  }, err => {
+    const msg = document.getElementById('parseMsg');
+    msg.className = 'parse-msg warn';
+    msg.textContent = '데이터베이스 접근이 거부되었습니다. Firebase 보안 규칙이 게시되었는지 확인해 주세요.';
+  });
+}
+
+function applyRemote(v) {
+  const txObj = v.txs || {};
+  state.txs = Object.keys(txObj).map(k => Object.assign({ id: k }, txObj[k]));
+  state.txs.sort((a, b) =>
+    new Date(b.y, b.m - 1, b.d, b.hh, b.mi) - new Date(a.y, a.m - 1, a.d, a.hh, a.mi));
+  state.names = [
+    (v.names && v.names[0]) || '나',
+    (v.names && v.names[1]) || '아내'
+  ];
+  state.cardOwner = v.cardOwner || {};
+  state.holderOwner = v.holderOwner || {};
+  const n0 = document.getElementById('name0'), n1 = document.getElementById('name1');
+  if (document.activeElement !== n0) n0.value = state.names[0];
+  if (document.activeElement !== n1) n1.value = state.names[1];
+}
+
+/* ── 공유 코드 화면 ── */
+document.getElementById('codeGen').addEventListener('click', () => {
+  const words = ['moon', 'star', 'pine', 'han', 'sol', 'dal', 'bit', 'nuri', 'saem', 'mir'];
+  const w = words[Math.floor(Math.random() * words.length)];
+  const rand = Math.random().toString(36).slice(2, 8);
+  document.getElementById('codeInput').value = w + '-' + rand;
+});
+document.getElementById('codeEnter').addEventListener('click', () => {
+  const raw = document.getElementById('codeInput').value;
+  const code = sanitizeCode(raw);
+  const msg = document.getElementById('codeMsg');
+  if (code.length < 6) { msg.textContent = '코드는 6자 이상으로 정해주세요. (짧으면 남이 추측할 수 있습니다)'; return; }
+  msg.textContent = '';
+  openLedger(code);
+});
+document.getElementById('codeChange').addEventListener('click', () => {
+  if (!confirm('장부 코드를 변경하면 다른 코드의 장부로 이동합니다.\n(현재 데이터가 지워지는 것은 아닙니다)\n계속할까요?')) return;
+  store.del('cardLedger.code');
+  if (ledgerRef) { ledgerRef.off(); ledgerRef = null; }
+  document.getElementById('codeInput').value = '';
+  showOnly('gateCode');
+});
+
+/* ═══════════ 기록 추가 ═══════════ */
+document.getElementById('parseBtn').addEventListener('click', () => {
+  const box = document.getElementById('inbox');
+  const msg = document.getElementById('parseMsg');
+  const text = box.value.trim();
+  msg.className = 'parse-msg';
+  if (!ledgerRef) { msg.textContent = '장부에 연결되지 않았습니다.'; msg.classList.add('warn'); return; }
+  if (!text) { msg.textContent = '문자 내용을 먼저 붙여넣어 주세요.'; msg.classList.add('warn'); return; }
+
+  const parsed = parseText(text);
+  if (!parsed.length) {
+    msg.textContent = '거래 내역을 찾지 못했습니다. 금액(○○원)과 날짜(07/04 10:42)가 포함된 문자인지 확인해 주세요.';
+    msg.classList.add('warn'); return;
+  }
+
+  const existing = new Set(state.txs.map(t => t.id));
+  const updates = {};
+  let added = 0, dup = 0;
+  for (const t of parsed) {
+    const k = txKey(t);
+    if (existing.has(k)) { dup++; continue; }
+    existing.add(k);
+    let person = curPerson;
+    if (t.last4 && state.cardOwner[t.last4] !== undefined) person = state.cardOwner[t.last4];
+    else if (t.holder && state.holderOwner[t.holder] !== undefined) person = state.holderOwner[t.holder];
+    t.person = person;
+    updates['txs/' + k] = t;
+    if (t.last4) updates['cardOwner/' + t.last4] = person;
+    if (t.holder) updates['holderOwner/' + t.holder] = person;
+    added++;
+  }
+  if (added) {
+    ledgerRef.update(updates).catch(() => {
+      msg.className = 'parse-msg warn';
+      msg.textContent = '저장에 실패했습니다. 연결 상태를 확인해 주세요.';
+    });
+  }
+  box.value = '';
+  msg.textContent = added + '건 기록 완료' + (dup ? ' · 중복 ' + dup + '건 제외' : '');
+});
+
+/* ═══════════ 사용자 선택/이름 ═══════════ */
+function renderPersonPick() {
+  const wrap = document.getElementById('personPick');
+  wrap.innerHTML = '';
+  state.names.forEach((n, idx) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = n;
+    b.className = idx === curPerson ? 'on' : '';
+    b.setAttribute('aria-pressed', idx === curPerson);
+    b.addEventListener('click', () => { curPerson = idx; renderPersonPick(); });
+    wrap.appendChild(b);
+  });
+}
+['name0', 'name1'].forEach((id, idx) => {
+  const inp = document.getElementById(id);
+  inp.addEventListener('change', () => {
+    const v = inp.value.trim();
+    if (v && ledgerRef) ledgerRef.child('names/' + idx).set(v);
+    else inp.value = state.names[idx];
+  });
+});
+
+/* ═══════════ 렌더링 ═══════════ */
+function monthsOf(txs) {
+  const set = new Set(txs.map(t => t.y + '-' + pad(t.m)));
+  return [...set].sort().reverse();
+}
+
+function render() {
+  renderPersonPick();
+  const has = state.txs.length > 0;
+  document.getElementById('emptyBox').style.display = has ? 'none' : 'block';
+  document.getElementById('listSection').style.display = has ? 'block' : 'none';
+  document.getElementById('sumPanel').style.display = has ? 'block' : 'none';
+  document.getElementById('chartPanel').style.display = has ? 'block' : 'none';
+  if (!has) return;
+
+  const months = monthsOf(state.txs);
+  if (filterMonth !== 'all' && !months.includes(filterMonth)) filterMonth = 'all';
+  const mf = document.getElementById('monthFilters');
+  mf.innerHTML = '';
+  const mkChip = (label, val, cur, setter) => {
+    const c = document.createElement('button');
+    c.type = 'button'; c.className = 'chip' + (val === cur ? ' on' : '');
+    c.textContent = label;
+    c.addEventListener('click', () => { setter(val); render(); });
+    return c;
+  };
+  mf.appendChild(mkChip('전체', 'all', filterMonth, v => filterMonth = v));
+  months.forEach(m => {
+    const [y, mo] = m.split('-');
+    mf.appendChild(mkChip(y.slice(2) + '년 ' + (+mo) + '월', m, filterMonth, v => filterMonth = v));
+  });
+
+  const pf = document.getElementById('personFilters');
+  pf.innerHTML = '';
+  pf.appendChild(mkChip('모두', 'all', filterPerson, v => filterPerson = v));
+  state.names.forEach((n, idx) =>
+    pf.appendChild(mkChip(n, idx, filterPerson, v => filterPerson = v)));
+
+  const shown = state.txs.filter(t =>
+    (filterMonth === 'all' || (t.y + '-' + pad(t.m)) === filterMonth) &&
+    (filterPerson === 'all' || t.person === filterPerson));
+
+  const now = new Date();
+  const sumTarget = filterMonth === 'all'
+    ? state.txs.filter(t => t.y === now.getFullYear() && t.m === now.getMonth() + 1)
+    : state.txs.filter(t => (t.y + '-' + pad(t.m)) === filterMonth);
+  document.getElementById('sumTitle').textContent = filterMonth === 'all'
+    ? '이번 달 합계' : filterMonth.split('-')[0] + '년 ' + (+filterMonth.split('-')[1]) + '월 합계';
+  const sums = [0, 0];
+  let all = 0;
+  sumTarget.forEach(t => { all += t.amount; if (t.person === 0 || t.person === 1) sums[t.person] += t.amount; });
+  document.getElementById('sumAll').textContent = fmt(all);
+  document.getElementById('sumL0').textContent = state.names[0];
+  document.getElementById('sumL1').textContent = state.names[1];
+  document.getElementById('sumV0').textContent = fmt(sums[0]);
+  document.getElementById('sumV1').textContent = fmt(sums[1]);
+  document.getElementById('legN0').textContent = state.names[0];
+  document.getElementById('legN1').textContent = state.names[1];
+
+  const list = document.getElementById('txList');
+  list.innerHTML = '';
+  const groups = {};
+  shown.forEach(t => {
+    const k = t.y + '-' + pad(t.m);
+    (groups[k] = groups[k] || []).push(t);
+  });
+  Object.keys(groups).sort().reverse().forEach(k => {
+    const [y, mo] = k.split('-');
+    const g = groups[k];
+    const total = g.reduce((s, t) => s + t.amount, 0);
+
+    const block = document.createElement('div');
+    block.className = 'month-block receipt-wrap';
+    const head = document.createElement('div');
+    head.className = 'month-head';
+    head.innerHTML = '<span class="m-name">' + y + '년 ' + (+mo) + '월</span>' +
+      '<span class="m-total">' + g.length + '건 · ' + fmt(total) + '</span>';
+    block.appendChild(head);
+
+    const zigT = document.createElement('div'); zigT.className = 'zig'; block.appendChild(zigT);
+    const rc = document.createElement('div'); rc.className = 'receipt';
+    g.forEach(t => rc.appendChild(txRow(t)));
+    block.appendChild(rc);
+    const zigB = document.createElement('div'); zigB.className = 'zig bot'; block.appendChild(zigB);
+    list.appendChild(block);
+  });
+
+  drawChart();
+}
+
+function txRow(t) {
+  const row = document.createElement('div');
+  row.className = 'tx';
+
+  const dt = document.createElement('span');
+  dt.className = 'dt';
+  dt.innerHTML = '<b>' + pad(t.m) + '/' + pad(t.d) + '</b> ' + pad(t.hh) + ':' + pad(t.mi);
+
+  const mer = document.createElement('span');
+  mer.className = 'mer';
+  const nm = document.createElement('span');
+  nm.className = 'name'; nm.textContent = t.merchant;
+  mer.appendChild(nm);
+
+  const amt = document.createElement('span');
+  amt.className = 'amt' + (t.amount < 0 ? ' minus' : '');
+  amt.textContent = (t.amount < 0 ? '−' : '') + fmt(Math.abs(t.amount));
+
+  const meta = document.createElement('span');
+  meta.className = 'meta';
+  const pTag = document.createElement('button');
+  pTag.type = 'button';
+  pTag.className = 'tag person p' + t.person;
+  pTag.textContent = state.names[t.person] || '?';
+  pTag.title = '눌러서 사용자 변경';
+  pTag.addEventListener('click', () => {
+    if (!ledgerRef) return;
+    const p = t.person === 0 ? 1 : 0;
+    const updates = {};
+    updates['txs/' + t.id + '/person'] = p;
+    if (t.last4) updates['cardOwner/' + t.last4] = p;
+    if (t.holder) updates['holderOwner/' + t.holder] = p;
+    ledgerRef.update(updates);
+  });
+  meta.appendChild(pTag);
+  if (t.type === '취소') {
+    const c = document.createElement('span'); c.className = 'tag cancel'; c.textContent = '취소';
+    meta.appendChild(c);
+  } else if (t.type !== '일시불') {
+    const c = document.createElement('span'); c.className = 'tag'; c.textContent = t.type;
+    meta.appendChild(c);
+  }
+  if (t.last4) {
+    const c = document.createElement('span'); c.className = 'tag';
+    c.textContent = (t.cardName ? shortCard(t.cardName) + ' ' : '') + t.last4;
+    meta.appendChild(c);
+  }
+  const del = document.createElement('button');
+  del.type = 'button'; del.className = 'del'; del.textContent = '✕';
+  del.setAttribute('aria-label', '이 내역 삭제');
+  del.addEventListener('click', () => {
+    if (ledgerRef) ledgerRef.child('txs/' + t.id).remove();
+  });
+  meta.appendChild(del);
+
+  row.appendChild(dt); row.appendChild(mer); row.appendChild(amt); row.appendChild(meta);
+  return row;
+}
+function shortCard(name) {
+  const m = name.match(/(KB국민|신한|삼성|현대|롯데|우리|하나|농협|BC|IBK|씨티|카카오|토스)/);
+  return m ? m[1] : name.slice(0, 6);
+}
+
+/* ═══════════ 차트: 최근 6개월 스택 바 ═══════════ */
+function drawChart() {
+  const cv = document.getElementById('chart');
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth || 600, H = 190;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const now = new Date();
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ y: d.getFullYear(), m: d.getMonth() + 1, v: [0, 0] });
+  }
+  state.txs.forEach(t => {
+    const slot = months.find(x => x.y === t.y && x.m === t.m);
+    if (slot && (t.person === 0 || t.person === 1)) slot.v[t.person] += t.amount;
+  });
+  const max = Math.max(10000, ...months.map(x => Math.max(0, x.v[0]) + Math.max(0, x.v[1])));
+
+  const padL = 8, padB = 26, padT = 18;
+  const bw = Math.min(46, (W - padL * 2) / months.length * 0.52);
+  const gap = (W - padL * 2) / months.length;
+  const colors = ['#2E7D6E', '#C08A3E'];
+  const ink = '#4A5A66';
+
+  ctx.font = '11px "IBM Plex Mono", monospace';
+  ctx.textAlign = 'center';
+
+  months.forEach((mo, i) => {
+    const cx = padL + gap * i + gap / 2;
+    let base = H - padB;
+    [0, 1].forEach(p => {
+      const v = Math.max(0, mo.v[p]);
+      const h = (v / max) * (H - padB - padT);
+      if (h > 0.5) {
+        ctx.fillStyle = colors[p];
+        if (ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(cx - bw / 2, base - h, bw, h, p === 1 || mo.v[0] <= 0 ? [3, 3, 0, 0] : 0);
+          ctx.fill();
+        } else {
+          ctx.fillRect(cx - bw / 2, base - h, bw, h);
+        }
+        base -= h;
+      }
+    });
+    const tot = mo.v[0] + mo.v[1];
+    ctx.fillStyle = ink;
+    if (tot > 0) {
+      const label = tot >= 10000 ? (Math.round(tot / 1000) / 10) + '만' : Math.round(tot / 1000) + '천';
+      ctx.fillText(label, cx, base - 6);
+    }
+    ctx.fillText(mo.m + '월', cx, H - 8);
+  });
+  ctx.strokeStyle = '#DCD6C8';
+  ctx.beginPath(); ctx.moveTo(padL, H - padB + 0.5); ctx.lineTo(W - padL, H - padB + 0.5); ctx.stroke();
+}
+window.addEventListener('resize', () => { if (state.txs.length) drawChart(); });
+
+/* ═══════════ 내보내기 / 가져오기 ═══════════ */
+function download(name, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+document.getElementById('csvBtn').addEventListener('click', () => {
+  if (!state.txs.length) return;
+  const rows = [['날짜', '시간', '사용자', '가맹점', '금액', '구분', '카드', '끝번호']];
+  [...state.txs].sort((a, b) =>
+    new Date(a.y, a.m - 1, a.d, a.hh, a.mi) - new Date(b.y, b.m - 1, b.d, b.hh, b.mi))
+    .forEach(t => rows.push([
+      t.y + '-' + pad(t.m) + '-' + pad(t.d), pad(t.hh) + ':' + pad(t.mi),
+      state.names[t.person] || '', t.merchant, t.amount, t.type, t.cardName || '', t.last4 || ''
+    ]));
+  const csv = '\uFEFF' + rows.map(r =>
+    r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+  download('카드장부.csv', csv, 'text/csv;charset=utf-8');
+});
+document.getElementById('jsonBtn').addEventListener('click', () => {
+  download('카드장부-백업.json', JSON.stringify(state, null, 1), 'application/json');
+});
+document.getElementById('importBtn').addEventListener('click', () =>
+  document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    const msg = document.getElementById('parseMsg');
+    try {
+      if (!ledgerRef) throw new Error('no ledger');
+      const s = JSON.parse(r.result);
+      if (!s || !Array.isArray(s.txs)) throw new Error('형식 오류');
+      const existing = new Set(state.txs.map(t => t.id));
+      const updates = {};
+      let added = 0;
+      s.txs.forEach(t => {
+        const k = txKey(t);
+        if (existing.has(k)) return;
+        existing.add(k);
+        const clean = {
+          y: t.y, m: t.m, d: t.d, hh: t.hh || 0, mi: t.mi || 0,
+          amount: t.amount, type: t.type || '일시불',
+          merchant: t.merchant || '(가맹점 미확인)',
+          cardName: t.cardName || '', last4: t.last4 || '', holder: t.holder || '',
+          person: (t.person === 0 || t.person === 1) ? t.person : 0
+        };
+        updates['txs/' + k] = clean;
+        added++;
+      });
+      if (added) ledgerRef.update(updates);
+      msg.className = 'parse-msg';
+      msg.textContent = '백업에서 ' + added + '건을 불러왔습니다. (중복 제외)';
+    } catch (err) {
+      msg.className = 'parse-msg warn';
+      msg.textContent = '백업 파일을 읽지 못했습니다. 이 앱에서 저장한 JSON 파일인지 확인해 주세요.';
+    }
+    e.target.value = '';
+  };
+  r.readAsText(f);
+});
+document.getElementById('clearBtn').addEventListener('click', () => {
+  if (!state.txs.length || !ledgerRef) return;
+  if (confirm('기록된 내역 ' + state.txs.length + '건을 두 분 모두의 장부에서 삭제합니다.\n삭제 전에 "백업 저장"을 눌러 두는 것을 권합니다.\n계속할까요?')) {
+    ledgerRef.child('txs').remove();
+  }
+});
+
+init();
+</script>
+</body>
+</html>
