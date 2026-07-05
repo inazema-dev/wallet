@@ -1,0 +1,13 @@
+{
+  "name": "우리집 카드장부",
+  "short_name": "카드장부",
+  "description": "카드 사용 문자를 붙여넣어 정리하는 부부 가계부",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#21313F",
+  "theme_color": "#21313F",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
