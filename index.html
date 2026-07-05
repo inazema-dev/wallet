@@ -106,7 +106,12 @@ textarea::placeholder{color:#A9A390;}
 .tx .dt b{color:var(--ink);font-weight:600;}
 .tx .mer{font-size:14.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   display:flex;align-items:baseline;gap:8px;min-width:0;}
-.tx .mer .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tx .mer .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;
+  border-bottom:1px dotted transparent;}
+.tx .mer .name:hover{border-bottom-color:#B9B29E;}
+.tx .mer input.name-edit{font:inherit;font-family:var(--sans);border:1px solid var(--ledger);
+  border-radius:4px;background:var(--paper);color:var(--ink);padding:1px 6px;width:100%;min-width:80px;}
+.tx .mer input.name-edit:focus{outline:none;}
 .tx .mer::after{content:"";flex:1;border-bottom:1px dotted #B9B29E;min-width:12px;transform:translateY(-3px);}
 .tx .amt{font-family:var(--mono);font-size:15px;font-weight:600;white-space:nowrap;text-align:right;}
 .tx .amt.minus{color:var(--stamp);}
@@ -730,6 +735,33 @@ function txRow(t) {
   mer.className = 'mer';
   const nm = document.createElement('span');
   nm.className = 'name'; nm.textContent = t.merchant;
+  nm.title = '눌러서 이름 수정';
+  nm.addEventListener('click', () => {
+    if (!ledgerRef) return;
+    const inp = document.createElement('input');
+    inp.className = 'name-edit';
+    inp.type = 'text';
+    inp.maxLength = 25;
+    inp.value = t.merchant;
+    let done = false;
+    const commit = () => {
+      if (done) return; done = true;
+      const v = inp.value.trim();
+      if (v && v !== t.merchant) {
+        ledgerRef.child('txs/' + t.id + '/merchant').set(v);
+      } else {
+        render(); // 변경 없으면 원래 표시로 복귀
+      }
+    };
+    inp.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter') { ev.preventDefault(); inp.blur(); }
+      if (ev.key === 'Escape') { done = true; render(); }
+    });
+    inp.addEventListener('blur', commit);
+    mer.replaceChild(inp, nm);
+    inp.focus();
+    inp.select();
+  });
   mer.appendChild(nm);
 
   const amt = document.createElement('span');
