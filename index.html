@@ -139,6 +139,46 @@ canvas{width:100%;height:190px;display:block;}
 .rename{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--ink-soft);}
 .rename input{width:90px;border:1px solid var(--rule);border-radius:6px;padding:6px 9px;font-family:var(--sans);font-size:13px;background:var(--paper);color:var(--ink);}
 .rename input:focus{outline:2px solid var(--ledger);border-color:transparent;}
+
+/* ── 직접 입력 ── */
+.manual-label{font-size:12px;color:var(--ink-soft);margin-top:14px;}
+.manual{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+.manual input{border:1px solid var(--rule);border-radius:8px;background:var(--paper);padding:9px 10px;font-family:var(--sans);font-size:13.5px;color:var(--ink);min-width:0;}
+.manual input:focus{outline:2px solid var(--ledger);border-color:transparent;}
+.manual .m-date{flex:0 1 140px;}
+.manual .m-mer{flex:1 1 150px;min-width:130px;}
+.manual .m-amt{flex:0 1 110px;min-width:90px;font-family:var(--mono);}
+
+/* ── 예산/비교/카테고리 분석 ── */
+.budget{margin-top:14px;}
+.budget .b-line{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-soft);margin-bottom:5px;}
+.budget .b-line b{font-family:var(--mono);color:var(--ink);}
+.b-bar{height:10px;border-radius:5px;background:var(--paper-deep);overflow:hidden;border:1px solid var(--rule);}
+.b-fill{height:100%;border-radius:5px;background:var(--ledger);transition:width .3s;}
+.cmp{margin-top:10px;font-size:12.5px;color:var(--ink-soft);}
+.cmp b{font-family:var(--mono);font-weight:600;}
+.cmp .up{color:var(--stamp);}
+.cmp .down{color:var(--ledger);}
+.catbrk{margin-top:14px;border-top:1px dashed var(--rule);padding-top:12px;}
+.cb-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12.5px;}
+.cb-row .cb-name{flex:0 0 78px;color:var(--ink-soft);}
+.cb-row .cb-bar{flex:1;height:8px;background:var(--paper-deep);border-radius:4px;overflow:hidden;}
+.cb-row .cb-fill{display:block;height:100%;background:var(--ledger);border-radius:4px;}
+.cb-row .cb-amt{flex:0 0 auto;font-family:var(--mono);font-size:12px;}
+
+/* ── 카테고리/고정/메모 태그 ── */
+select.tag-cat{font-family:var(--sans);font-size:11px;border:1px solid var(--rule);border-radius:4px;padding:1px 4px;background:var(--paper);color:var(--ink-soft);-webkit-appearance:none;appearance:none;cursor:pointer;}
+.tag.fixed{color:var(--ink-soft);border-color:#B9B29E;background:var(--paper-deep);}
+button.tag.addmemo{cursor:pointer;color:#B0A995;font-family:var(--sans);}
+.tx .memo{grid-column:1/-1;font-size:12px;color:var(--ink-soft);font-style:italic;cursor:pointer;}
+.tx .memo::before{content:"✎ ";font-style:normal;color:#B0A995;}
+.tx input.memo-edit{grid-column:1/-1;font-family:var(--sans);font-size:12px;border:1px solid var(--ledger);border-radius:4px;background:var(--paper);color:var(--ink);padding:3px 8px;}
+.tx input.memo-edit:focus{outline:none;}
+
+/* ── 예산 설정 ── */
+.budget-set{display:flex;gap:8px;margin-top:12px;align-items:center;font-size:13px;color:var(--ink-soft);flex-wrap:wrap;}
+.budget-set input{width:120px;border:1px solid var(--rule);border-radius:6px;padding:6px 9px;font-family:var(--mono);font-size:13px;background:var(--paper);color:var(--ink);}
+.budget-set input:focus{outline:2px solid var(--ledger);border-color:transparent;}
 .code-info{margin-top:12px;font-size:12.5px;color:var(--ink-soft);font-family:var(--mono);}
 
 /* ── 시작 화면(공유 코드 / 설정 안내) ── */
@@ -222,6 +262,13 @@ KB국민BC카드(1050)
       <button class="btn btn-main" id="parseBtn">장부에 기록</button>
     </div>
     <div class="parse-msg" id="parseMsg" role="status"></div>
+    <div class="manual-label">문자가 없는 지출(현금·계좌이체)은 직접 입력:</div>
+    <div class="manual">
+      <input type="date" class="m-date" id="mDate" aria-label="날짜">
+      <input type="text" class="m-mer" id="mMer" maxlength="25" placeholder="내용 (예: 시장 장보기)">
+      <input type="number" class="m-amt" id="mAmt" inputmode="numeric" placeholder="금액">
+      <button class="btn btn-ghost" id="mAdd" type="button">추가</button>
+    </div>
   </section>
 
   <section class="panel" id="sumPanel" style="display:none">
@@ -231,6 +278,12 @@ KB국민BC카드(1050)
       <div class="sum-cell p0"><div class="lbl" id="sumL0">나</div><div class="val" id="sumV0">0원</div></div>
       <div class="sum-cell p1"><div class="lbl" id="sumL1">아내</div><div class="val" id="sumV1">0원</div></div>
     </div>
+    <div class="budget" id="budgetWrap" style="display:none">
+      <div class="b-line"><span id="bLabel"></span><b id="bPct"></b></div>
+      <div class="b-bar"><div class="b-fill" id="bFill"></div></div>
+    </div>
+    <div class="cmp" id="cmpLine"></div>
+    <div class="catbrk" id="catBrk" style="display:none"></div>
   </section>
 
   <section id="listSection" style="display:none">
@@ -268,6 +321,11 @@ KB국민BC카드(1050)
       <input id="name0" maxlength="6" aria-label="첫 번째 사용자 이름">
       <input id="name1" maxlength="6" aria-label="두 번째 사용자 이름">
     </div>
+    <div class="budget-set">
+      월 예산:
+      <input id="budgetInput" inputmode="numeric" placeholder="미설정">
+      <span>원 · 비우면 해제</span>
+    </div>
     <div class="code-info">현재 장부 코드: <b id="codeShow"></b></div>
   </section>
 </main>
@@ -304,18 +362,41 @@ const store = (() => {
 })();
 
 /* ── 상태 ── */
-let state = { txs: [], names: ['나', '아내'], cardOwner: {}, holderOwner: {} };
+let state = { txs: [], names: ['나', '아내'], cardOwner: {}, holderOwner: {}, merchantCat: {}, budget: 0 };
 let curPerson = 0;
 let filterMonth = 'all';
 let filterPerson = 'all';
+let filterVar = false;      // '변동만' 필터
+let fixedSet = new Set();   // 고정지출로 판정된 가맹점
 let ledgerRef = null;
 let ledgerCode = null;
+
+const CATS = ['미분류', '식비', '카페/간식', '생활', '교통', '의료', '문화/여가', '통신/구독', '주거/공과금', '교육', '경조/선물', '기타'];
 
 function fmt(n) { return n.toLocaleString('ko-KR') + '원'; }
 function pad(n) { return String(n).padStart(2, '0'); }
 function txKey(t) {
   return [t.y, pad(t.m), pad(t.d), pad(t.hh), pad(t.mi), t.amount, t.last4 || 'x']
     .join('_').replace(/[.#$\[\]\/]/g, '-');
+}
+function merKey(m) { return String(m).replace(/[.#$\[\]\/]/g, '-').slice(0, 40) || '-'; }
+
+// 고정지출 판정: 두 달 이상 등장 + 금액 편차 15% 이내인 가맹점
+function computeFixedSet() {
+  const byMer = {};
+  state.txs.forEach(t => {
+    if (t.amount <= 0) return;
+    (byMer[t.merchant] = byMer[t.merchant] || []).push(t);
+  });
+  const set = new Set();
+  for (const m in byMer) {
+    const list = byMer[m];
+    const months = new Set(list.map(t => t.y + '-' + t.m));
+    if (months.size < 2) continue;
+    const amts = list.map(t => t.amount);
+    if (Math.max(...amts) / Math.min(...amts) <= 1.15) set.add(m);
+  }
+  return set;
 }
 
 /* ═══════════ 파서 (Node.js 검증 완료 — 로컬 버전과 동일) ═══════════ */
@@ -542,9 +623,13 @@ function applyRemote(v) {
   ];
   state.cardOwner = v.cardOwner || {};
   state.holderOwner = v.holderOwner || {};
+  state.merchantCat = v.merchantCat || {};
+  state.budget = v.budget || 0;
   const n0 = document.getElementById('name0'), n1 = document.getElementById('name1');
   if (document.activeElement !== n0) n0.value = state.names[0];
   if (document.activeElement !== n1) n1.value = state.names[1];
+  const bi = document.getElementById('budgetInput');
+  if (document.activeElement !== bi) bi.value = state.budget > 0 ? state.budget : '';
 }
 
 /* ── 공유 코드 화면 ── */
@@ -596,6 +681,7 @@ document.getElementById('parseBtn').addEventListener('click', () => {
     if (t.last4 && state.cardOwner[t.last4] !== undefined) person = state.cardOwner[t.last4];
     else if (t.holder && state.holderOwner[t.holder] !== undefined) person = state.holderOwner[t.holder];
     t.person = person;
+    t.cat = state.merchantCat[merKey(t.merchant)] || '미분류';
     updates['txs/' + k] = t;
     if (t.last4) updates['cardOwner/' + t.last4] = person;
     if (t.holder) updates['holderOwner/' + t.holder] = person;
@@ -609,6 +695,46 @@ document.getElementById('parseBtn').addEventListener('click', () => {
   }
   box.value = '';
   msg.textContent = added + '건 기록 완료' + (dup ? ' · 중복 ' + dup + '건 제외' : '');
+});
+
+/* ═══════════ 직접 입력 (현금·이체) ═══════════ */
+function todayStr() {
+  const n = new Date();
+  return n.getFullYear() + '-' + pad(n.getMonth() + 1) + '-' + pad(n.getDate());
+}
+document.getElementById('mDate').value = todayStr();
+document.getElementById('mAdd').addEventListener('click', () => {
+  const msg = document.getElementById('parseMsg');
+  msg.className = 'parse-msg';
+  if (!ledgerRef) { msg.textContent = '장부에 연결되지 않았습니다.'; msg.classList.add('warn'); return; }
+  const dstr = document.getElementById('mDate').value;
+  const mer = document.getElementById('mMer').value.trim();
+  const amt = parseInt(String(document.getElementById('mAmt').value).replace(/[^\d]/g, ''), 10);
+  if (!dstr || !mer || !amt) { msg.textContent = '날짜, 내용, 금액을 모두 입력해 주세요.'; msg.classList.add('warn'); return; }
+  const [y, m, d] = dstr.split('-').map(Number);
+  const n = new Date();
+  const t = {
+    y, m, d, hh: n.getHours(), mi: n.getMinutes(),
+    amount: amt, type: '직접입력', merchant: mer,
+    cardName: '', last4: '', holder: '',
+    person: curPerson,
+    cat: state.merchantCat[merKey(mer)] || '미분류'
+  };
+  const k = txKey(t) + '_m' + Math.random().toString(36).slice(2, 6);
+  ledgerRef.child('txs/' + k).set(t).catch(() => {
+    msg.className = 'parse-msg warn';
+    msg.textContent = '저장에 실패했습니다. 연결 상태를 확인해 주세요.';
+  });
+  document.getElementById('mMer').value = '';
+  document.getElementById('mAmt').value = '';
+  msg.textContent = '직접 입력 1건 기록 완료 (' + state.names[curPerson] + ')';
+});
+
+/* ═══════════ 월 예산 설정 ═══════════ */
+document.getElementById('budgetInput').addEventListener('change', () => {
+  if (!ledgerRef) return;
+  const v = parseInt(String(document.getElementById('budgetInput').value).replace(/[^\d]/g, ''), 10) || 0;
+  ledgerRef.child('budget').set(v);
 });
 
 /* ═══════════ 사용자 선택/이름 ═══════════ */
@@ -670,10 +796,21 @@ function render() {
   pf.appendChild(mkChip('모두', 'all', filterPerson, v => filterPerson = v));
   state.names.forEach((n, idx) =>
     pf.appendChild(mkChip(n, idx, filterPerson, v => filterPerson = v)));
+  fixedSet = computeFixedSet();
+  if (fixedSet.size) {
+    const vc = document.createElement('button');
+    vc.type = 'button';
+    vc.className = 'chip' + (filterVar ? ' on' : '');
+    vc.textContent = '변동만';
+    vc.title = '매달 반복되는 고정지출 제외';
+    vc.addEventListener('click', () => { filterVar = !filterVar; render(); });
+    pf.appendChild(vc);
+  } else { filterVar = false; }
 
   const shown = state.txs.filter(t =>
     (filterMonth === 'all' || (t.y + '-' + pad(t.m)) === filterMonth) &&
-    (filterPerson === 'all' || t.person === filterPerson));
+    (filterPerson === 'all' || t.person === filterPerson) &&
+    (!filterVar || !fixedSet.has(t.merchant)));
 
   const now = new Date();
   const sumTarget = filterMonth === 'all'
@@ -691,6 +828,75 @@ function render() {
   document.getElementById('sumV1').textContent = fmt(sums[1]);
   document.getElementById('legN0').textContent = state.names[0];
   document.getElementById('legN1').textContent = state.names[1];
+
+  /* 예산 진행 바 */
+  const bw = document.getElementById('budgetWrap');
+  if (state.budget > 0) {
+    bw.style.display = 'block';
+    const pct = Math.round(all / state.budget * 100);
+    document.getElementById('bLabel').textContent = '월 예산 ' + fmt(state.budget);
+    document.getElementById('bPct').textContent = pct + '% 사용';
+    const fill = document.getElementById('bFill');
+    fill.style.width = Math.min(100, Math.max(0, pct)) + '%';
+    fill.style.background = pct > 100 ? '#B5402C' : (pct >= 80 ? '#C08A3E' : '#2E7D6E');
+  } else bw.style.display = 'none';
+
+  /* 지난달 비교 + 고정/변동 분리 */
+  let cmpHtml = '';
+  if (filterMonth === 'all') {
+    const day = now.getDate();
+    const pm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevSum = state.txs
+      .filter(t => t.y === pm.getFullYear() && t.m === pm.getMonth() + 1 && t.d <= day)
+      .reduce((s, t) => s + t.amount, 0);
+    if (prevSum || all) {
+      const diff = all - prevSum;
+      cmpHtml = '지난달 같은 기간 대비 <b class="' + (diff > 0 ? 'up' : 'down') + '">' +
+        (diff >= 0 ? '+' : '−') + Math.abs(diff).toLocaleString('ko-KR') + '원</b>';
+    }
+  } else {
+    const parts = filterMonth.split('-').map(Number);
+    const pm = new Date(parts[0], parts[1] - 2, 1);
+    const prevSum = state.txs
+      .filter(t => t.y === pm.getFullYear() && t.m === pm.getMonth() + 1)
+      .reduce((s, t) => s + t.amount, 0);
+    if (prevSum) {
+      const diff = all - prevSum;
+      cmpHtml = '전월 대비 <b class="' + (diff > 0 ? 'up' : 'down') + '">' +
+        (diff >= 0 ? '+' : '−') + Math.abs(diff).toLocaleString('ko-KR') + '원</b>';
+    }
+  }
+  const fx = sumTarget.filter(t => fixedSet.has(t.merchant)).reduce((s, t) => s + t.amount, 0);
+  if (fx > 0) {
+    cmpHtml += (cmpHtml ? '<br>' : '') +
+      '고정지출 <b>' + fx.toLocaleString('ko-KR') + '원</b> · 변동 <b>' +
+      (all - fx).toLocaleString('ko-KR') + '원</b>';
+  }
+  document.getElementById('cmpLine').innerHTML = cmpHtml;
+
+  /* 카테고리 분석 */
+  const cb = document.getElementById('catBrk');
+  const cmap = {};
+  sumTarget.forEach(t => { const c = t.cat || '미분류'; cmap[c] = (cmap[c] || 0) + t.amount; });
+  const entries = Object.entries(cmap).filter(e => e[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const onlyUncat = entries.length === 1 && entries[0][0] === '미분류';
+  if (entries.length && !onlyUncat) {
+    cb.style.display = 'block';
+    cb.innerHTML = '';
+    const mx = entries[0][1];
+    entries.forEach(e => {
+      const row = document.createElement('div');
+      row.className = 'cb-row';
+      const nm = document.createElement('span'); nm.className = 'cb-name'; nm.textContent = e[0];
+      const bar = document.createElement('span'); bar.className = 'cb-bar';
+      const f = document.createElement('span'); f.className = 'cb-fill';
+      f.style.width = Math.max(4, Math.round(e[1] / mx * 100)) + '%';
+      bar.appendChild(f);
+      const am = document.createElement('span'); am.className = 'cb-amt'; am.textContent = fmt(e[1]);
+      row.appendChild(nm); row.appendChild(bar); row.appendChild(am);
+      cb.appendChild(row);
+    });
+  } else cb.style.display = 'none';
 
   const list = document.getElementById('txList');
   list.innerHTML = '';
@@ -748,7 +954,10 @@ function txRow(t) {
       if (done) return; done = true;
       const v = inp.value.trim();
       if (v && v !== t.merchant) {
-        ledgerRef.child('txs/' + t.id + '/merchant').set(v);
+        const updates = {};
+        updates['txs/' + t.id + '/merchant'] = v;
+        if (t.cat && t.cat !== '미분류') updates['merchantCat/' + merKey(v)] = t.cat;
+        ledgerRef.update(updates);
       } else {
         render(); // 변경 없으면 원래 표시로 복귀
       }
@@ -785,6 +994,32 @@ function txRow(t) {
     ledgerRef.update(updates);
   });
   meta.appendChild(pTag);
+
+  /* 카테고리 선택 */
+  const catSel = document.createElement('select');
+  catSel.className = 'tag tag-cat';
+  catSel.setAttribute('aria-label', '카테고리');
+  CATS.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c; o.textContent = c;
+    catSel.appendChild(o);
+  });
+  catSel.value = (t.cat && CATS.indexOf(t.cat) >= 0) ? t.cat : '미분류';
+  catSel.addEventListener('change', () => {
+    if (!ledgerRef) return;
+    const updates = {};
+    updates['txs/' + t.id + '/cat'] = catSel.value;
+    updates['merchantCat/' + merKey(t.merchant)] = catSel.value;
+    ledgerRef.update(updates);
+  });
+  meta.appendChild(catSel);
+
+  if (fixedSet.has(t.merchant) && t.amount > 0) {
+    const f = document.createElement('span');
+    f.className = 'tag fixed'; f.textContent = '고정';
+    f.title = '매달 반복되는 지출로 자동 인식됨';
+    meta.appendChild(f);
+  }
   if (t.type === '취소') {
     const c = document.createElement('span'); c.className = 'tag cancel'; c.textContent = '취소';
     meta.appendChild(c);
@@ -797,6 +1032,12 @@ function txRow(t) {
     c.textContent = (t.cardName ? shortCard(t.cardName) + ' ' : '') + t.last4;
     meta.appendChild(c);
   }
+  if (!t.memo) {
+    const ab = document.createElement('button');
+    ab.type = 'button'; ab.className = 'tag addmemo'; ab.textContent = '+메모';
+    ab.addEventListener('click', () => editMemo(row, t));
+    meta.appendChild(ab);
+  }
   const del = document.createElement('button');
   del.type = 'button'; del.className = 'del'; del.textContent = '✕';
   del.setAttribute('aria-label', '이 내역 삭제');
@@ -806,7 +1047,42 @@ function txRow(t) {
   meta.appendChild(del);
 
   row.appendChild(dt); row.appendChild(mer); row.appendChild(amt); row.appendChild(meta);
+  if (t.memo) {
+    const mm = document.createElement('span');
+    mm.className = 'memo'; mm.textContent = t.memo;
+    mm.title = '눌러서 메모 수정';
+    mm.addEventListener('click', () => editMemo(row, t));
+    row.appendChild(mm);
+  }
   return row;
+}
+
+function editMemo(row, t) {
+  if (!ledgerRef) return;
+  const old = row.querySelector('.memo');
+  if (old) old.remove();
+  const oldBtn = row.querySelector('.addmemo');
+  if (oldBtn) oldBtn.remove();
+  const inp = document.createElement('input');
+  inp.className = 'memo-edit'; inp.type = 'text';
+  inp.maxLength = 40;
+  inp.value = t.memo || '';
+  inp.placeholder = '메모 입력 (완료를 누르면 저장)';
+  let done = false;
+  const commit = () => {
+    if (done) return; done = true;
+    const v = inp.value.trim();
+    if (v === (t.memo || '')) { render(); return; }
+    if (v) ledgerRef.child('txs/' + t.id + '/memo').set(v);
+    else ledgerRef.child('txs/' + t.id + '/memo').remove();
+  };
+  inp.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') { ev.preventDefault(); inp.blur(); }
+    if (ev.key === 'Escape') { done = true; render(); }
+  });
+  inp.addEventListener('blur', commit);
+  row.appendChild(inp);
+  inp.focus();
 }
 function shortCard(name) {
   const m = name.match(/(KB국민|신한|삼성|현대|롯데|우리|하나|농협|BC|IBK|씨티|카카오|토스)/);
@@ -886,12 +1162,13 @@ function download(name, content, mime) {
 }
 document.getElementById('csvBtn').addEventListener('click', () => {
   if (!state.txs.length) return;
-  const rows = [['날짜', '시간', '사용자', '가맹점', '금액', '구분', '카드', '끝번호']];
+  const rows = [['날짜', '시간', '사용자', '가맹점', '금액', '구분', '카테고리', '메모', '카드', '끝번호']];
   [...state.txs].sort((a, b) =>
     new Date(a.y, a.m - 1, a.d, a.hh, a.mi) - new Date(b.y, b.m - 1, b.d, b.hh, b.mi))
     .forEach(t => rows.push([
       t.y + '-' + pad(t.m) + '-' + pad(t.d), pad(t.hh) + ':' + pad(t.mi),
-      state.names[t.person] || '', t.merchant, t.amount, t.type, t.cardName || '', t.last4 || ''
+      state.names[t.person] || '', t.merchant, t.amount, t.type,
+      t.cat || '미분류', t.memo || '', t.cardName || '', t.last4 || ''
     ]));
   const csv = '\uFEFF' + rows.map(r =>
     r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\r\n');
@@ -924,7 +1201,8 @@ document.getElementById('importFile').addEventListener('change', e => {
           amount: t.amount, type: t.type || '일시불',
           merchant: t.merchant || '(가맹점 미확인)',
           cardName: t.cardName || '', last4: t.last4 || '', holder: t.holder || '',
-          person: (t.person === 0 || t.person === 1) ? t.person : 0
+          person: (t.person === 0 || t.person === 1) ? t.person : 0,
+          cat: t.cat || '미분류', memo: t.memo || ''
         };
         updates['txs/' + k] = clean;
         added++;
